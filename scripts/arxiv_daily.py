@@ -7,6 +7,7 @@ from tenacity import retry, wait_fixed, stop_after_attempt
 ARXIV_API = "https://export.arxiv.org/api/query"
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
+DAYS = int(os.getenv("DAYS", "7"))
 
 def arxiv_query(params: dict) -> str:
     return f"{ARXIV_API}?{urlencode(params)}"
@@ -17,6 +18,32 @@ def fetch(url: str):
     time.sleep(3)
     # feedparser respects the URL and returns a parsed feed
     return feedparser.parse(url)
+
+
+def iter_recent_entries(max_results=2000, page_size=200, sort_by="submittedDate", days=DAYS):
+    cutoff = (dt.datetime.utcnow().date() - dt.timedelta(days=days-1))
+    fetched, start = 0, 0
+    while fetched < max_results:
+        url = arxiv_query({
+            "search_query": "all:*",
+            "start": start,
+            "max_results": page_size,
+            "sortBy": sort_by,
+            "sortOrder": "descending",
+        })
+        feed = fetch(url)
+        entries = getattr(feed, "entries", [])
+        if not entries:
+            break
+        for e in entries:
+            pub_date = dt.datetime.fromisoformat(e.published.replace("Z","+00:00")).date()
+            if pub_date < cutoff:
+                return
+            yield e
+        fetched += len(entries)
+        start += page_size
+
+
 
 def iter_today_entries(max_results=2000, page_size=200, sort_by="submittedDate"):
     today = dt.datetime.utcnow().date()
@@ -96,7 +123,7 @@ def main():
 
     new_papers, new_authors, new_cats = [], [], []
 
-    for e in iter_today_entries():
+    for e in iter_recent_entries():
         rec, a_list, c_list = parse_entry(e)
         new_papers.append(rec)
         new_authors.extend(a_list)
