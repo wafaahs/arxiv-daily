@@ -103,10 +103,23 @@ def parse_entry(e):
     }
     return rec, authors, [{"paper_id_version": entry_id, "category": c} for c in cats]
 
+# def load_parquet(path, cols):
+#     if os.path.exists(path):
+#         return pd.read_parquet(path)
+#     return pd.DataFrame(columns=cols)
+
+def safe_write_parquet(df, path):
+    tmp = path + ".tmp"
+    df.to_parquet(tmp, index=False)
+    os.replace(tmp, path)  # atomic on POSIX/GitHub runners
+
+
 def load_parquet(path, cols):
-    if os.path.exists(path):
+    if os.path.exists(path) and os.path.getsize(path) > 0:
         return pd.read_parquet(path)
+    # treat missing/empty as fresh
     return pd.DataFrame(columns=cols)
+
 
 def main():
     papers_path = os.path.join(DATA_DIR, "papers.parquet")
@@ -141,9 +154,13 @@ def main():
     authors = pd.concat([authors, na_df], ignore_index=True).drop_duplicates(["paper_id_version","author_name","affiliation"])
     categories = pd.concat([categories, nc_df], ignore_index=True).drop_duplicates(["paper_id_version","category"])
 
-    papers.to_parquet(papers_path, index=False)
-    authors.to_parquet(authors_path, index=False)
-    categories.to_parquet(cats_path, index=False)
+    # papers.to_parquet(papers_path, index=False)
+    # authors.to_parquet(authors_path, index=False)
+    # categories.to_parquet(cats_path, index=False)
+    safe_write_parquet(papers, papers_path)
+    safe_write_parquet(authors, authors_path)
+    safe_write_parquet(categories, cats_path)
+
 
     run = pd.DataFrame([{
         "run_utc": pd.Timestamp.utcnow().isoformat(),
