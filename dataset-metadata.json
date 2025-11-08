@@ -1,0 +1,8 @@
+{
+  "title": "Daily arXiv Metadata (Rolling History)",
+  "id": "wafaaelhusseini/daily-arxiv-metadata",
+  "licenses": [{"name": "CC0-1.0"}],
+  "subtitle": "Daily pull of arXiv metadata + optional tags",
+  "description": "Metadata from arXiv’s public API (https://arxiv.org/help/api/). Files: papers.parquet, authors.parquet, categories.parquet, enrichments.parquet (optional), run_log.csv. Updated daily (UTC).",
+  "isPrivate": false
+}

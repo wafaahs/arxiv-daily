@@ -1,0 +1,47 @@
+name: Update arXiv dataset daily
+
+on:
+  schedule:
+    - cron: "10 6 * * *"   # daily 06:10 UTC
+  workflow_dispatch: {}
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -r requirements.txt --quiet
+
+      - name: Run scraper
+        run: python scripts/arxiv_daily.py
+
+      - name: Optional enrichment
+        run: python scripts/enrich_today.py
+
+      - name: Prepare Kaggle metadata
+        run: cp dataset-metadata.json data/
+
+      - name: Push to Kaggle
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          python - <<'PY'
+          import os, subprocess
+          # ensure kaggle is installed (also in requirements)
+          subprocess.check_call(["python","-m","pip","install","kaggle","--quiet"])
+          # First-time create vs subsequent versions:
+          # Try 'version'; if it fails, fall back to 'create'.
+          meta = "data/dataset-metadata.json"
+          assert os.path.exists(meta), "dataset-metadata.json missing in /data"
+          try:
+              subprocess.check_call(["kaggle","datasets","version","-p","data","-m","auto daily update","-r","zip"])
+          except subprocess.CalledProcessError:
+              subprocess.check_call(["kaggle","datasets","create","-p","data","-r","zip"])
+          PY
